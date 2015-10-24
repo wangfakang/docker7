@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Docker7 by wangfakang</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <script src="javascripts/scale.fix.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1 class="header">Docker7</h1>
+        <p class="header">docker cmd and entrypoint questions</p>
+
+        <ul>
+          <li class="download"><a class="buttons" href="https://github.com/wangfakang/docker7/zipball/master">Download ZIP</a></li>
+          <li class="download"><a class="buttons" href="https://github.com/wangfakang/docker7/tarball/master">Download TAR</a></li>
+          <li><a class="buttons github" href="https://github.com/wangfakang/docker7">View On GitHub</a></li>
+        </ul>
+
+        <p class="header">This project is maintained by <a class="header name" href="https://github.com/wangfakang">wangfakang</a></p>
+
+
+      </header>
+      <section>
+        <p><code>关于dockerfile中CMD以及ENTRYPOINT命令的解析：</code></p>
+
+<p>　 之前只是对这两个命令简单做了下解释，但是今天实战了一下　踩了一些坑：     </p>
+
+<p>首先说一些CMD的写法吧：<br>
+CMD 有三种写法：<br>
+     CMD <a href="exec%20form,%20this%20is%20the%20preferred%20form">"executable","param1","param2"</a><br>
+     CMD <a href="as%20default%20parameters%20to%20ENTRYPOINT">"param1","param2"</a><br>
+     CMD command param1 param2 (shell form)     </p>
+
+<h1>
+<a id="坑坑１" class="anchor" href="#%E5%9D%91%E5%9D%91%EF%BC%91" aria-hidden="true"><span class="octicon octicon-link"></span></a>坑坑１:</h1>
+
+<p>在所写的CMD [] 方式的时候一定要注意CMD 和[]之间是要空格隔开的，否则build就会出错．</p>
+
+<h1>
+<a id="坑坑２" class="anchor" href="#%E5%9D%91%E5%9D%91%EF%BC%92" aria-hidden="true"><span class="octicon octicon-link"></span></a>坑坑２:</h1>
+
+<p>在写下面格式CMD时候：   </p>
+
+<ul>
+<li>CMD "echo" , "test"  // will output [/bin/sh: 1: echo,: not found]<br>
+</li>
+<li>CMD echo , "test"   // will output  [, test]  注意之间试不用写逗号隔开的
+cmd的第三种写法后面的参数是指所要执行命令的参数（如:ps aux \ ls -c）等</li>
+</ul>
+
+<h1>
+<a id="坑坑３" class="anchor" href="#%E5%9D%91%E5%9D%91%EF%BC%93" aria-hidden="true"><span class="octicon octicon-link"></span></a>坑坑３:</h1>
+
+<p>之前一直认为CMD中命令只会被run后面同样的命令覆盖，其实不是这样的，而是都是可以替代的．</p>
+
+<h1>
+<a id="坑坑４" class="anchor" href="#%E5%9D%91%E5%9D%91%EF%BC%94" aria-hidden="true"><span class="octicon octicon-link"></span></a>坑坑４:</h1>
+
+<p>通过查看docker inspect查看image，看到CMD ["execute"] 和　CMD execute的区别：</p>
+
+<p>如：   </p>
+
+<ul>
+<li>CMD["/bin/echo","hello"]<br>
+　　　docker解析后如下：<br>
+</li>
+</ul>
+
+<pre><code>        "Cmd": [
+            "/bin/echo",
+            "test"
+        ]
+</code></pre>
+
+<ul>
+<li>CMD /bin/echo "hello"
+　　　docker解析后如下：</li>
+</ul>
+
+<pre><code>        "Cmd": [
+            "/bin/sh",
+            "-c",
+            "/bin/echo  \"test\""
+        ]
+</code></pre>
+
+<p>看到了嘛，不要[]会多一个/bin/sh　－c．也就是说CMD后面不要中括号的话则是在shell中执行．而有中括号的则
+exec:shell的内建命令exec将并不启动新的shell，而是用要被执行命令替换当前的shell进程，并且将老进程的环
+境清理掉，而且exec命令后的其它命令将不再执行。  </p>
+
+<p>还有一个简单的现象可以对比：</p>
+
+<ul>
+<li><p>CMD echo $HOME
+命令最终解析为：
+    "Cmd": [
+        "/bin/sh",
+        "-c",
+        "#(nop) CMD [/bin/sh -c echo $HOME]"
+    ]</p></li>
+<li><p>CMD ["echo", "$HOME"]
+命令最终解析为：  </p></li>
+</ul>
+
+<pre><code>        "Cmd": [
+            "/bin/sh",
+            "-c",
+            "#(nop) CMD [echo $HOME]"
+        ]
+</code></pre>
+
+<p>以上两条在第一个中$HOME可以被解析出来，而第二个却输出$HOME字符串．
+其实官网上有解决办法：CMD ["/bin/sh", "-c", "echo", "$HOME"]</p>
+
+<pre><code>        "Cmd": [
+            "/bin/sh",
+            "-c",
+            "#(nop) CMD [/bin/sh -c echo $HOME]"
+        ]
+</code></pre>
+
+<p>这样的话效果就和CMD echo $HOME一样了．</p>
+
+<ul>
+<li>CMD ["sh", "-c", "echo", "$HOME"]如下：</li>
+</ul>
+
+<pre><code>
+        "Cmd": [
+            "/bin/sh",
+            "-c",
+            "#(nop) CMD [sh -c echo $HOME]"
+        ]
+</code></pre>
+
+<p>上面输出的是空字符串．</p>
+
+<p>最后就是ENTRYPOINT了其实和上面的CMD很相似吧，只不过是ENTRYPOINT不会被docker run中的给的命令参数覆盖．
+当然还有就是CMD的第二种写法　向ENTRYPOINT提供参数：这种应用场景
+CMD可以为ENTRYPOINT提供参数，ENTRYPOINT本身也可以包含参数，但是你可以把那些可能需要变动的参数写到CMD
+里而把那些不需要变动的参数写到ENTRYPOINT里面例如：  </p>
+
+<pre><code>FROM ubuntu:14.10  
+ENTRYPOINT ["top", "-b"]   
+CMD ["-c"]  
+</code></pre>
+
+<h1>
+<a id="欢迎一起交流学习-" class="anchor" href="#%E6%AC%A2%E8%BF%8E%E4%B8%80%E8%B5%B7%E4%BA%A4%E6%B5%81%E5%AD%A6%E4%B9%A0-" aria-hidden="true"><span class="octicon octicon-link"></span></a>欢迎一起交流学习 </h1>
+
+<p>在使用中有任何问题，欢迎反馈给我，可以用以下联系方式跟我交流</p>
+
+<ul>
+<li>邮件(1031379296#qq.com, 把#换成@)</li>
+<li>QQ: 1031379296</li>
+<li>weibo: <a href="http://weibo.com/u/2786211992/home">@王发康</a>
+</li>
+</ul>
+
+<h1>
+<a id="thx" class="anchor" href="#thx" aria-hidden="true"><span class="octicon octicon-link"></span></a>Thx</h1>
+
+<ul>
+<li>chunshengsterATgmail.com</li>
+</ul>
+
+<h1>
+<a id="author" class="anchor" href="#author" aria-hidden="true"><span class="octicon octicon-link"></span></a>Author</h1>
+
+<ul>
+<li>Linux\nginx\golang\c\c++爱好者</li>
+<li>欢迎一起交流  一起学习# </li>
+<li>Others say good and Others good</li>
+</ul>
+      </section>
+      <footer>
+        <p><small>Hosted on <a href="https://pages.github.com">GitHub Pages</a> using the Dinky theme</small></p>
+      </footer>
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+		          <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("some differents points about docker CMD and ENTRYPOINT or RUN");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
